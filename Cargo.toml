@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "rp2040-project-template"
+name = "basic-arduino-lib"
 version = "0.1.0"
 
 [dependencies]
@@ -21,6 +21,8 @@ rp-pico = "0.7"
 # If you're not going to use a Board Support Package you'll need these:
 # rp2040-hal = { version="0.8", features=["rt", "critical-section-impl"] }
 # rp2040-boot2 = "0.2"
+
+once_cell = { version = "1", default_features = false }
 
 # cargo build/run
 [profile.dev]
