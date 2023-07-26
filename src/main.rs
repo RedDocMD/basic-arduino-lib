@@ -4,14 +4,13 @@
 #![no_std]
 #![no_main]
 
+mod sync;
 mod types;
 
 use bsp::entry;
-use core::cell::RefCell;
 use defmt_rtt as _;
 use panic_probe as _;
 
-use cortex_m::interrupt::{self, Mutex};
 use defmt::info;
 use embedded_hal::digital::v2::OutputPin;
 use once_cell::unsync::Lazy;
@@ -20,6 +19,7 @@ use once_cell::unsync::Lazy;
 // Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
 use rp_pico as bsp;
 
+use self::sync::NullLock;
 use self::types::BspData;
 // use sparkfun_pro_micro_rp2040 as bsp;
 
@@ -55,8 +55,7 @@ const INPUT_PULLUP: u8 = 0x2;
 // Only valid for "standard" variant of Arduino
 const LED_BUILTIN: u8 = 13;
 
-static BSP_DATA: Mutex<Lazy<RefCell<BspData>>> =
-    Mutex::new(Lazy::new(|| RefCell::new(BspData::new())));
+static BSP_DATA: NullLock<Lazy<BspData>> = NullLock::new(Lazy::new(BspData::new));
 
 #[no_mangle]
 pub extern "C" fn pinMode(pin: u8, mode: u8) {
@@ -65,27 +64,21 @@ pub extern "C" fn pinMode(pin: u8, mode: u8) {
 
 #[no_mangle]
 pub extern "C" fn digitalWrite(pin: u8, val: u8) {
-    interrupt::free(|cs| {
-        let mut bsp_data = BSP_DATA.borrow(cs).borrow_mut();
-        match pin {
-            LED_BUILTIN => {
-                if val == LOW {
-                    bsp_data.led.set_low().unwrap();
-                } else if val == HIGH {
-                    bsp_data.led.set_high().unwrap();
-                } else {
-                    defmt::unreachable!("Invalid value to set to LED");
-                }
+    BSP_DATA.lock(|bsp_data| match pin {
+        LED_BUILTIN => {
+            if val == LOW {
+                bsp_data.led.set_low().unwrap();
+            } else if val == HIGH {
+                bsp_data.led.set_high().unwrap();
+            } else {
+                defmt::unreachable!("Invalid value to set to LED");
             }
-            _ => defmt::todo!("Implement write for other pins"),
         }
+        _ => defmt::todo!("Implement write for other pins"),
     });
 }
 
 #[no_mangle]
 pub extern "C" fn delay(amt_ms: u64) {
-    interrupt::free(|cs| {
-        let mut bsp_data = BSP_DATA.borrow(cs).borrow_mut();
-        bsp_data.delay.delay_ms(amt_ms as u32);
-    });
+    BSP_DATA.lock(|bsp_data| bsp_data.delay.delay_ms(amt_ms as u32));
 }
